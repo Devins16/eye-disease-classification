@@ -1,7 +1,9 @@
 import torch
 import torchvision.transforms as transforms
-from PIL import Image
 import timm
+import numpy as np
+
+from PIL import Image
 import torch.nn.functional as F
 
 class_names = [
@@ -13,6 +15,12 @@ class_names = [
     "uveitis"
 ]
 
+transform = transforms.Compose([
+    transforms.Resize((224,224)),
+    transforms.ToTensor()
+])
+
+
 def load_model():
 
     model = timm.create_model(
@@ -21,16 +29,11 @@ def load_model():
         num_classes=6
     )
 
-    model.load_state_dict(torch.load("model.pth", map_location="cpu"))
+    model.load_state_dict(torch.load("Model.pth", map_location="cpu"))
+
     model.eval()
 
     return model
-
-
-transform = transforms.Compose([
-    transforms.Resize((224,224)),
-    transforms.ToTensor(),
-])
 
 
 def predict(model, image):
