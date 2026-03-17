@@ -1,134 +1,149 @@
 import streamlit as st
 from PIL import Image
-import numpy as np
-import torch
 from utils import load_model, predict
 from class_explanations import class_explanations
 
-# ===================== CONFIG =====================
 st.set_page_config(
-    page_title="Eye Disease Classification",
-    layout="wide",
+    page_title="Eye Disease AI",
+    layout="wide"
 )
 
-# ===================== STYLE =====================
+# ---------- CUSTOM CSS ----------
 st.markdown("""
 <style>
-.stApp {
-    background-color: #0e1117;
-    color: white;
+
+.main-title{
+font-size:40px;
+font-weight:700;
+text-align:center;
+margin-bottom:10px;
 }
 
-.card {
-    background-color: #1c1f26;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
+.sub-title{
+text-align:center;
+color:gray;
+margin-bottom:40px;
 }
 
-.title {
-    font-size: 40px;
-    font-weight: bold;
+.card{
+padding:20px;
+border-radius:15px;
+background-color:#ffffff;
+box-shadow:0 4px 12px rgba(0,0,0,0.08);
+margin-bottom:20px;
 }
 
-.subtitle {
-    color: #9ca3af;
-    margin-bottom: 20px;
+.result-card{
+padding:15px;
+border-radius:12px;
+background-color:#f8f9fa;
+margin-bottom:10px;
 }
 
-img {
-    border-radius: 15px;
-    object-fit: cover;
-}
-
-.badge {
-    background-color: #16a34a;
-    padding: 5px 10px;
-    border-radius: 10px;
-    font-size: 14px;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# ===================== HEADER =====================
-st.markdown('<div class="title">Eye Disease Classification</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">AI-based detection using ConvNeXtV2</div>', unsafe_allow_html=True)
 
-# ===================== LOAD MODEL =====================
-@st.cache_resource
-def get_model():
-    return load_model()
+# ---------- HEADER ----------
+st.markdown(
+'<div class="main-title">Eye Disease Classification</div>',
+unsafe_allow_html=True
+)
 
-model = get_model()
+st.markdown(
+'<div class="sub-title">AI-based detection of eye diseases using ConvNeXtV2</div>',
+unsafe_allow_html=True
+)
 
-# ===================== LAYOUT =====================
-col1, col2 = st.columns([1, 1])
+model = load_model()
 
-# ===================== LEFT =====================
+# ---------- LAYOUT ----------
+col1, col2 = st.columns([1,1])
+
+# ---------- UPLOAD ----------
 with col1:
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.subheader("Upload Eye Image")
-    uploaded_file = st.file_uploader("Choose an image", type=["jpg", "png", "jpeg"])
 
-    if uploaded_file is not None:
+    uploaded_file = st.file_uploader(
+        "Choose an image",
+        type=["jpg","png","jpeg"]
+    )
+
+    if uploaded_file:
+
         image = Image.open(uploaded_file)
 
-        # FIX SIZE (hanya untuk display)
-        image_display = image.resize((300, 300))
-        st.image(image_display, caption="Input Image")
+        st.image(image, caption="Uploaded Image", use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ===================== RIGHT =====================
+
+# ---------- PREDICTION ----------
 with col2:
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.subheader("Prediction Result")
 
-    if uploaded_file is not None:
-        # ===================== PREDICT =====================
-        probs = predict(model, image)
+    if uploaded_file:
 
-        # ===================== HANDLE SEMUA FORMAT =====================
-        if isinstance(probs, torch.Tensor):
-            probs = probs.detach().cpu().numpy()
+        results = predict(model, image)
 
-        probs = np.array(probs)
+        sorted_results = dict(
+            sorted(results.items(), key=lambda x: x[1], reverse=True)
+        )
 
-        # kalau bentuknya (1, n)
-        if probs.ndim > 1:
-            probs = probs.flatten()
+        top_class = list(sorted_results.keys())[0]
+        top_score = list(sorted_results.values())[0]
 
-        # ===================== SAFETY =====================
-        if len(probs) == 0:
-            st.error("Prediction failed: empty output")
-        else:
-            class_names = list(class_explanations.keys())
+        st.metric(
+            label="Predicted Disease",
+            value=top_class.capitalize(),
+            delta=f"{top_score*100:.2f}% confidence"
+        )
 
-            idx = int(np.argmax(probs))
-            confidence = float(np.max(probs)) * 100
+        st.write("### Probability by Class")
 
-            # ===================== RESULT =====================
-            st.markdown(f"### {class_names[idx]}")
-            st.markdown(
-                f'<span class="badge">↑ {confidence:.2f}% confidence</span>',
-                unsafe_allow_html=True
-            )
+        for cls, prob in sorted_results.items():
 
-            st.write("")
-            st.subheader("Probability by Class")
+            percent = prob * 100
+            
+            col_label, col_bar, col_percent = st.columns([2,6,1])
 
-            for i, cls in enumerate(class_names):
-                value = float(probs[i]) if i < len(probs) else 0.0
-                st.write(cls)
-                st.progress(value)
+            with col_label:
+                st.write(cls.capitalize())
 
-            st.write("")
-            st.subheader("Explanation")
-            st.info(class_explanations[class_names[idx]])
+            with col_bar:
+                st.progress(float(prob))
 
-    else:
-        st.info("Upload an image to see prediction")
+            with col_percent:
+                st.write(f"{percent:.2f}%")
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ---------- EXPLANATION ----------
+if uploaded_file:
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
+    st.subheader("Medical Explanation")
+
+    st.write(class_explanations[top_class])
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ---------- FOOTER ----------
+st.markdown(
+"""
+<br><br>
+<center style="color:gray">
+Eye Disease Classification Model • ConvNeXtV2 Architecture
+</center>
+""",
+unsafe_allow_html=True
+)
