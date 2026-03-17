@@ -1,149 +1,123 @@
 import streamlit as st
 from PIL import Image
+import torch
+import numpy as np
 from utils import load_model, predict
 from class_explanations import class_explanations
 
+# ===================== CONFIG =====================
 st.set_page_config(
-    page_title="Eye Disease AI",
-    layout="wide"
+    page_title="Eye Disease Classification",
+    layout="wide",
 )
 
-# ---------- CUSTOM CSS ----------
+# ===================== STYLE =====================
 st.markdown("""
 <style>
-
-.main-title{
-font-size:40px;
-font-weight:700;
-text-align:center;
-margin-bottom:10px;
+/* Background */
+.stApp {
+    background-color: #0e1117;
+    color: white;
 }
 
-.sub-title{
-text-align:center;
-color:gray;
-margin-bottom:40px;
+/* Card */
+.card {
+    background-color: #1c1f26;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
 }
 
-.card{
-padding:20px;
-border-radius:15px;
-background-color:#ffffff;
-box-shadow:0 4px 12px rgba(0,0,0,0.08);
-margin-bottom:20px;
+/* Title */
+.title {
+    font-size: 40px;
+    font-weight: bold;
 }
 
-.result-card{
-padding:15px;
-border-radius:12px;
-background-color:#f8f9fa;
-margin-bottom:10px;
+/* Subtitle */
+.subtitle {
+    color: #9ca3af;
+    margin-bottom: 20px;
 }
 
+/* Image */
+img {
+    border-radius: 15px;
+    object-fit: cover;
+}
+
+/* Confidence badge */
+.badge {
+    background-color: #16a34a;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 14px;
+}
 </style>
 """, unsafe_allow_html=True)
 
+# ===================== HEADER =====================
+st.markdown('<div class="title">Eye Disease Classification</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">AI-based detection using ConvNeXtV2</div>', unsafe_allow_html=True)
 
-# ---------- HEADER ----------
-st.markdown(
-'<div class="main-title">Eye Disease Classification</div>',
-unsafe_allow_html=True
-)
+# ===================== LOAD MODEL =====================
+@st.cache_resource
+def get_model():
+    return load_model()
 
-st.markdown(
-'<div class="sub-title">AI-based detection of eye diseases using ConvNeXtV2</div>',
-unsafe_allow_html=True
-)
+model = get_model()
 
-model = load_model()
+# ===================== LAYOUT =====================
+col1, col2 = st.columns([1, 1])
 
-# ---------- LAYOUT ----------
-col1, col2 = st.columns([1,1])
-
-# ---------- UPLOAD ----------
+# ===================== LEFT (UPLOAD) =====================
 with col1:
-
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.subheader("Upload Eye Image")
+    uploaded_file = st.file_uploader("Choose an image", type=["jpg", "png", "jpeg"])
 
-    uploaded_file = st.file_uploader(
-        "Choose an image",
-        type=["jpg","png","jpeg"]
-    )
-
-    if uploaded_file:
-
+    if uploaded_file is not None:
         image = Image.open(uploaded_file)
 
-        st.image(image, caption="Uploaded Image", use_container_width=True)
+        # FIX SIZE GAMBAR
+        image_display = image.resize((300, 300))
+
+        st.image(image_display, caption="Input Image")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ---------- PREDICTION ----------
+# ===================== RIGHT (RESULT) =====================
 with col2:
-
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.subheader("Prediction Result")
 
-    if uploaded_file:
+    if uploaded_file is not None:
+        preds, probs = predict(model, image)
 
-        results = predict(model, image)
+        class_names = list(class_explanations.keys())
 
-        sorted_results = dict(
-            sorted(results.items(), key=lambda x: x[1], reverse=True)
-        )
+        predicted_class = class_names[np.argmax(probs)]
+        confidence = np.max(probs) * 100
 
-        top_class = list(sorted_results.keys())[0]
-        top_score = list(sorted_results.values())[0]
+        st.markdown(f"### {predicted_class}")
+        st.markdown(f'<span class="badge">↑ {confidence:.2f}% confidence</span>', unsafe_allow_html=True)
 
-        st.metric(
-            label="Predicted Disease",
-            value=top_class.capitalize(),
-            delta=f"{top_score*100:.2f}% confidence"
-        )
+        st.write("")
 
-        st.write("### Probability by Class")
+        st.subheader("Probability by Class")
 
-        for cls, prob in sorted_results.items():
+        for i, cls in enumerate(class_names):
+            st.write(f"{cls}")
+            st.progress(float(probs[i]))
 
-            percent = prob * 100
-            
-            col_label, col_bar, col_percent = st.columns([2,6,1])
+        st.write("")
 
-            with col_label:
-                st.write(cls.capitalize())
+        st.subheader("Explanation")
+        st.info(class_explanations[predicted_class])
 
-            with col_bar:
-                st.progress(float(prob))
-
-            with col_percent:
-                st.write(f"{percent:.2f}%")
+    else:
+        st.info("Upload an image to see prediction")
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ---------- EXPLANATION ----------
-if uploaded_file:
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-
-    st.subheader("Medical Explanation")
-
-    st.write(class_explanations[top_class])
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ---------- FOOTER ----------
-st.markdown(
-"""
-<br><br>
-<center style="color:gray">
-Eye Disease Classification Model • ConvNeXtV2 Architecture
-</center>
-""",
-unsafe_allow_html=True
-)
