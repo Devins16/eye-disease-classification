@@ -76,7 +76,7 @@ with col1:
 
         image = Image.open(uploaded_file)
 
-        st.image(image, caption="Uploaded Image", use_container_width=True)
+        st.image(image, caption="Uploaded Image", width=300)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
