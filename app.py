@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
+import torch
 from utils import load_model, predict
 from class_explanations import class_explanations
 
@@ -73,9 +74,8 @@ with col1:
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
 
-        # FIX SIZE (tidak ganggu model)
+        # FIX SIZE (hanya untuk display)
         image_display = image.resize((300, 300))
-
         st.image(image_display, caption="Input Image")
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -87,27 +87,46 @@ with col2:
     st.subheader("Prediction Result")
 
     if uploaded_file is not None:
-        # ❗ TIDAK DIUBAH: sesuai logic asli
+        # ===================== PREDICT =====================
         probs = predict(model, image)
 
-        class_names = list(class_explanations.keys())
+        # ===================== HANDLE SEMUA FORMAT =====================
+        if isinstance(probs, torch.Tensor):
+            probs = probs.detach().cpu().numpy()
 
-        predicted_class = class_names[np.argmax(probs)]
-        confidence = np.max(probs) * 100
+        probs = np.array(probs)
 
-        st.markdown(f"### {predicted_class}")
-        st.markdown(f'<span class="badge">↑ {confidence:.2f}% confidence</span>', unsafe_allow_html=True)
+        # kalau bentuknya (1, n)
+        if probs.ndim > 1:
+            probs = probs.flatten()
 
-        st.write("")
-        st.subheader("Probability by Class")
+        # ===================== SAFETY =====================
+        if len(probs) == 0:
+            st.error("Prediction failed: empty output")
+        else:
+            class_names = list(class_explanations.keys())
 
-        for i, cls in enumerate(class_names):
-            st.write(cls)
-            st.progress(float(probs[i]))
+            idx = int(np.argmax(probs))
+            confidence = float(np.max(probs)) * 100
 
-        st.write("")
-        st.subheader("Explanation")
-        st.info(class_explanations[predicted_class])
+            # ===================== RESULT =====================
+            st.markdown(f"### {class_names[idx]}")
+            st.markdown(
+                f'<span class="badge">↑ {confidence:.2f}% confidence</span>',
+                unsafe_allow_html=True
+            )
+
+            st.write("")
+            st.subheader("Probability by Class")
+
+            for i, cls in enumerate(class_names):
+                value = float(probs[i]) if i < len(probs) else 0.0
+                st.write(cls)
+                st.progress(value)
+
+            st.write("")
+            st.subheader("Explanation")
+            st.info(class_explanations[class_names[idx]])
 
     else:
         st.info("Upload an image to see prediction")
