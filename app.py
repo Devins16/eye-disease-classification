@@ -1,6 +1,5 @@
 import streamlit as st
 from PIL import Image
-import torch
 import numpy as np
 from utils import load_model, predict
 from class_explanations import class_explanations
@@ -14,13 +13,11 @@ st.set_page_config(
 # ===================== STYLE =====================
 st.markdown("""
 <style>
-/* Background */
 .stApp {
     background-color: #0e1117;
     color: white;
 }
 
-/* Card */
 .card {
     background-color: #1c1f26;
     padding: 20px;
@@ -28,25 +25,21 @@ st.markdown("""
     box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
 }
 
-/* Title */
 .title {
     font-size: 40px;
     font-weight: bold;
 }
 
-/* Subtitle */
 .subtitle {
     color: #9ca3af;
     margin-bottom: 20px;
 }
 
-/* Image */
 img {
     border-radius: 15px;
     object-fit: cover;
 }
 
-/* Confidence badge */
 .badge {
     background-color: #16a34a;
     padding: 5px 10px;
@@ -70,7 +63,7 @@ model = get_model()
 # ===================== LAYOUT =====================
 col1, col2 = st.columns([1, 1])
 
-# ===================== LEFT (UPLOAD) =====================
+# ===================== LEFT =====================
 with col1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
@@ -80,21 +73,22 @@ with col1:
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
 
-        # FIX SIZE GAMBAR
+        # FIX SIZE (tidak ganggu model)
         image_display = image.resize((300, 300))
 
         st.image(image_display, caption="Input Image")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ===================== RIGHT (RESULT) =====================
+# ===================== RIGHT =====================
 with col2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
     st.subheader("Prediction Result")
 
     if uploaded_file is not None:
-        preds, probs = predict(model, image)
+        # ❗ TIDAK DIUBAH: sesuai logic asli
+        probs = predict(model, image)
 
         class_names = list(class_explanations.keys())
 
@@ -105,15 +99,13 @@ with col2:
         st.markdown(f'<span class="badge">↑ {confidence:.2f}% confidence</span>', unsafe_allow_html=True)
 
         st.write("")
-
         st.subheader("Probability by Class")
 
         for i, cls in enumerate(class_names):
-            st.write(f"{cls}")
+            st.write(cls)
             st.progress(float(probs[i]))
 
         st.write("")
-
         st.subheader("Explanation")
         st.info(class_explanations[predicted_class])
 
